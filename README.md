@@ -12,7 +12,7 @@ by Ian Richardson and Ondrej Gajdusek.
 ## Install (HACS)
 
 1. HACS → ⋮ → **Custom repositories**
-2. Add `https://github.com/jonathangibson98/feedhound`, category **Integration**
+2. Add `https://github.com/jonathangibson98/ha-feedhound`, category **Integration**
 3. Install **Feedhound**, then **restart Home Assistant**
 
 Manual install: copy `custom_components/feedhound` into your HA `config/custom_components/` folder and restart.
