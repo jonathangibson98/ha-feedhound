@@ -1,1 +1,62 @@
-y
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add an RSS/Atom feed",
+        "data": {
+          "name": "Name",
+          "feed_url": "Feed URL",
+          "date_format": "Date format",
+          "scan_interval": "Refresh interval (minutes)",
+          "show_topn": "Max entries to keep",
+          "local_time": "Convert dates to local time",
+          "remove_summary_image": "Strip images from summary",
+          "inclusions": "Only keep these fields",
+          "exclusions": "Drop these fields"
+        },
+        "data_description": {
+          "feed_url": "RSS/Atom URL (http, https or file://).",
+          "date_format": "strftime format, e.g. %a, %b %d %I:%M %p",
+          "show_topn": "Leave empty to keep every entry.",
+          "inclusions": "Leave empty to keep everything. Add 'image' to get one image per entry. Don't use 'enclosure'.",
+          "exclusions": "Fields to throw away."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Couldn't download that URL. Check the address and your network.",
+      "invalid_feed": "Downloaded it, but there are no feed entries in it.",
+      "unknown": "Something unexpected broke. Check the Home Assistant log."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Feedhound settings",
+        "data": {
+          "name": "Name",
+          "feed_url": "Feed URL",
+          "date_format": "Date format",
+          "scan_interval": "Refresh interval (minutes)",
+          "show_topn": "Max entries to keep",
+          "local_time": "Convert dates to local time",
+          "remove_summary_image": "Strip images from summary",
+          "inclusions": "Only keep these fields",
+          "exclusions": "Drop these fields"
+        },
+        "data_description": {
+          "feed_url": "RSS/Atom URL (http, https or file://).",
+          "date_format": "strftime format, e.g. %a, %b %d %I:%M %p",
+          "show_topn": "Leave empty to keep every entry.",
+          "inclusions": "Leave empty to keep everything. Add 'image' to get one image per entry. Don't use 'enclosure'.",
+          "exclusions": "Fields to throw away."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Couldn't download that URL. Check the address and your network.",
+      "invalid_feed": "Downloaded it, but there are no feed entries in it.",
+      "unknown": "Something unexpected broke. Check the Home Assistant log."
+    }
+  }
+}
