@@ -1,0 +1,43 @@
+name: Bug report
+description: Something in Feedhound isn't working
+labels: [bug]
+body:
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2026.11.0"
+    validations:
+      required: true
+  - type: input
+    id: fh_version
+    attributes:
+      label: Feedhound version
+      placeholder: "1.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: setup
+    attributes:
+      label: How is the feed set up?
+      options:
+        - UI
+        - YAML
+    validations:
+      required: true
+  - type: input
+    id: feed
+    attributes:
+      label: Feed URL
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened vs. what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Settings → System → Logs, search "feedhound"
+      render: shell
