@@ -1,0 +1,49 @@
+name: Bump feedparser
+
+on:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check PyPI and edit files
+        id: bump
+        run: |
+          cd custom_components/feedhound
+          latest=$(curl -s https://pypi.org/pypi/feedparser/json | jq -r .info.version)
+          current=$(jq -r '.requirements[0]' manifest.json | sed 's/feedparser==//')
+          if [ "$latest" = "$current" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          oldver=$(jq -r .version manifest.json)
+          IFS=. read -r a b c <<< "$oldver"
+          newver="$a.$b.$((c+1))"
+          jq --arg r "feedparser==$latest" --arg v "$newver" \
+            '.requirements[0]=$r | .version=$v' manifest.json > tmp.json
+          mv tmp.json manifest.json
+          sed -i "s/^VERSION = .*/VERSION = \"$newver\"/" const.py
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "newver=$newver" >> "$GITHUB_OUTPUT"
+
+      - name: Open pull request
+        if: steps.bump.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: bump-feedparser
+          title: "Bump feedparser to ${{ steps.bump.outputs.latest }} (v${{ steps.bump.outputs.newver }})"
+          commit-message: "Bump feedparser to ${{ steps.bump.outputs.latest }}"
+          body: |
+            Automated weekly check found a newer feedparser.
+            Version bumped to ${{ steps.bump.outputs.newver }}.
+            Merging this triggers the release workflow.
