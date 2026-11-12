@@ -5,44 +5,46 @@ import email.utils
 import logging
 import re
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-import feedparser  # type: ignore[import]
 import homeassistant.helpers.config_validation as cv
-import requests
 import voluptuous as vol
 from dateutil import parser
 from feedparser import FeedParserDict
 from homeassistant.components.sensor import PLATFORM_SCHEMA, SensorEntity
-from homeassistant.const import CONF_NAME, CONF_SCAN_INTERVAL
+from homeassistant.const import CONF_NAME, CONF_SCAN_INTERVAL, CONF_UNIQUE_ID
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt
-from requests_file import FileAdapter
+
+from .api import fetch_feed
+from .const import (
+    CONF_DATE_FORMAT,
+    CONF_EXCLUSIONS,
+    CONF_FEED_URL,
+    CONF_INCLUSIONS,
+    CONF_LOCAL_TIME,
+    CONF_REMOVE_SUMMARY_IMG,
+    CONF_SHOW_TOPN,
+    DEFAULT_DATE_FORMAT,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SCAN_MINUTES,
+    DEFAULT_THUMBNAIL,
+    DEFAULT_TOPN,
+    IMAGE_REGEX,
+    VERSION,
+)
 
 if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
     from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-__version__ = "1.0.0"
+__version__ = VERSION
 
 COMPONENT_REPO = "https://github.com/jonathangibson98/feedhound/"
 
 REQUIREMENTS = ["feedparser"]
-
-CONF_FEED_URL = "feed_url"
-CONF_DATE_FORMAT = "date_format"
-CONF_LOCAL_TIME = "local_time"
-CONF_INCLUSIONS = "inclusions"
-CONF_EXCLUSIONS = "exclusions"
-CONF_SHOW_TOPN = "show_topn"
-CONF_REMOVE_SUMMARY_IMG = "remove_summary_image"
-
-DEFAULT_DATE_FORMAT = "%a, %b %d %I:%M %p"
-DEFAULT_SCAN_INTERVAL = timedelta(hours=1)
-DEFAULT_THUMBNAIL = "https://www.home-assistant.io/images/favicon-192x192-full.png"
-DEFAULT_TOPN = 9999
-USER_AGENT = f"Home Assistant Feedhound Integration {__version__}"
-IMAGE_REGEX = r"<img.+?src=\"(.+?)\".+?>"
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -55,6 +57,9 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_INCLUSIONS, default=[]): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional(CONF_EXCLUSIONS, default=[]): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): cv.time_period,
+        # Optional: give a YAML sensor a unique_id so you can also tweak its
+        # name/icon/area/entity_id from the UI.
+        vol.Optional(CONF_UNIQUE_ID): cv.string,
     },
 )
 
@@ -67,7 +72,7 @@ async def async_setup_platform(
     async_add_devices: AddEntitiesCallback,
     discovery_info: DiscoveryInfoType | None = None,  # noqa: ARG001
 ) -> None:
-    """Set up the Feedhound sensor."""
+    """Set up a Feedhound sensor from YAML (unchanged behaviour)."""
     async_add_devices(
         [
             FeedParserSensor(
@@ -80,9 +85,41 @@ async def async_setup_platform(
                 exclusions=config[CONF_EXCLUSIONS],
                 scan_interval=config[CONF_SCAN_INTERVAL],
                 local_time=config[CONF_LOCAL_TIME],
+                unique_id=config.get(CONF_UNIQUE_ID),
             ),
         ],
         update_before_add=True,
+    )
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,  # noqa: ARG001
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up a Feedhound sensor from the UI."""
+    cfg: dict[str, Any] = {**entry.data, **entry.options}
+    async_add_entities(
+        [
+            FeedParserSensor(
+                feed=cfg[CONF_FEED_URL],
+                name=cfg[CONF_NAME],
+                date_format=cfg.get(CONF_DATE_FORMAT, DEFAULT_DATE_FORMAT),
+                show_topn=int(cfg.get(CONF_SHOW_TOPN, DEFAULT_TOPN)),
+                remove_summary_image=cfg.get(CONF_REMOVE_SUMMARY_IMG, False),
+                inclusions=list(cfg.get(CONF_INCLUSIONS, [])),
+                exclusions=list(cfg.get(CONF_EXCLUSIONS, [])),
+                # the UI stores the interval as whole minutes
+                scan_interval=timedelta(
+                    minutes=int(cfg.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_MINUTES))
+                ),
+                local_time=cfg.get(CONF_LOCAL_TIME, False),
+                unique_id=entry.entry_id,
+                self_scheduled=True,
+            ),
+        ],
+        # No update_before_add here: if the feed is down at boot the entity still
+        # gets created and fills in on the first successful refresh.
     )
 
 
@@ -104,6 +141,8 @@ class FeedParserSensor(SensorEntity):
         inclusions: list[str | None],
         scan_interval: timedelta,
         local_time: bool,
+        unique_id: str | None = None,
+        self_scheduled: bool = False,
     ) -> None:
         """Initialize the Feedparser sensor."""
         self._feed = feed
@@ -119,6 +158,10 @@ class FeedParserSensor(SensorEntity):
         self._entries: list[dict[str, str]] = []
         self._attr_extra_state_attributes = {"entries": self._entries}
         self._attr_attribution = "Data retrieved by Feedhound"
+        self._attr_unique_id = unique_id
+        # YAML sensors are polled by the platform (scan_interval handled by HA).
+        # UI sensors run their own timer so each feed keeps its own interval.
+        self._attr_should_poll = not self_scheduled
         _LOGGER.debug("Feed %s: FeedParserSensor initialized - %s", self.name, self)
 
     def __repr__(self: FeedParserSensor) -> str:
@@ -132,15 +175,25 @@ class FeedParserSensor(SensorEntity):
             f'local_time={self._local_time}, date_format="{self._date_format}")'
         )
 
+    async def async_added_to_hass(self: FeedParserSensor) -> None:
+        """Start our own refresh timer (UI sensors only)."""
+        if self._attr_should_poll:
+            return
+        self.async_on_remove(
+            async_track_time_interval(
+                self.hass, self._async_scheduled_refresh, self._scan_interval
+            )
+        )
+        # first refresh right away, without blocking setup
+        self.hass.async_create_task(self._async_scheduled_refresh(None))
+
+    async def _async_scheduled_refresh(self: FeedParserSensor, _now: datetime | None) -> None:
+        await self.async_update_ha_state(force_refresh=True)
+
     def update(self: FeedParserSensor) -> None:
         """Parse the feed and update the state of the sensor."""
         _LOGGER.debug("Feed %s: Polling feed data from %s", self.name, self._feed)
-        s: requests.Session = requests.Session()
-        s.mount("file://", FileAdapter())
-        s.headers.update({"User-Agent": USER_AGENT})
-        res: requests.Response = s.get(self._feed)
-        res.raise_for_status()
-        parsed_feed: FeedParserDict = feedparser.parse(res.text)
+        parsed_feed: FeedParserDict = fetch_feed(self._feed)
 
         if not parsed_feed.entries:
             self._attr_native_value = None

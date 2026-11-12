@@ -2,10 +2,12 @@
   "domain": "feedhound",
   "name": "Feedhound",
   "codeowners": ["@jonathangibson98"],
+  "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/jonathangibson98/feedhound/blob/main/README.md",
+  "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/jonathangibson98/feedhound/issues",
   "requirements": ["feedparser==6.0.11", "python-dateutil", "requests-file", "requests"],
-  "version": "1.0.0"
+  "version": "1.1.0"
 }
