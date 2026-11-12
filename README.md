@@ -21,12 +21,24 @@ The icon and logo show up in the UI on Home Assistant 2026.3 or newer.
 
 ## Configure
 
+You can set feeds up either way. Both work at the same time.
+
+### Option A: the UI
+
+**Settings → Devices & services → Add integration → Feedhound.** Fill in the form
+(Feedhound test-downloads the feed before it saves, so typos get caught right away).
+To change anything later, open the Feedhound entry and hit the **cog / Configure**
+button. Changes apply instantly, no restart.
+
+### Option B: YAML
+
 Add to `configuration.yaml`, then restart:
 
 ```yaml
 sensor:
   - platform: feedhound
     name: Engineering Feed
+    unique_id: feedhound_engineering   # optional, see note below
     feed_url: "https://www.sciencedaily.com/rss/matter_energy/engineering.xml"
     date_format: "%a, %d %b %Y %H:%M:%S %Z"
     scan_interval:
@@ -47,6 +59,10 @@ sensor:
     show_topn: 1
 ```
 
+YAML feeds are edited in YAML. UI feeds are edited in the UI. They don't overwrite each other.
+Add a `unique_id` to a YAML feed if you also want to rename it, change its icon/area or
+entity ID from the UI.
+
 | Key | Description |
 |---|---|
 | `platform` (required) | Always `feedhound` |
@@ -57,7 +73,8 @@ sensor:
 | `show_topn` | Max number of entries to keep. Default: all |
 | `inclusions` | Only keep these fields |
 | `exclusions` | Drop these fields |
-| `scan_interval` | How often to refresh. Default 1 hour |
+| `scan_interval` | How often to refresh. Default 1 hour (UI: minutes) |
+| `unique_id` | YAML only, optional. Lets you edit the entity in the UI |
 
 Add `image` to `inclusions` if you want Feedhound to dig out an image per entry. If none is
 found it falls back to a default thumbnail. Don't use `enclosure`.
