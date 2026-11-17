@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - custom_components/feedhound/manifest.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version from manifest
+        id: v
+        run: echo "version=$(jq -r .version custom_components/feedhound/manifest.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag already exists
+        id: t
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v${{ steps.v.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create tag and release
+        if: steps.t.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          gh release create "v$VERSION" \
+            --target "$GITHUB_SHA" \
+            --title "v$VERSION" \
+            --generate-notes

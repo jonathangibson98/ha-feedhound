@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 DOMAIN = "feedhound"
-VERSION = "1.1.0"
+VERSION = "1.1.2"
 
 CONF_FEED_URL = "feed_url"
 CONF_DATE_FORMAT = "date_format"
