@@ -38,7 +38,7 @@ jobs:
 
       - name: Open pull request
         if: steps.bump.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           branch: bump-feedparser
           title: "Bump feedparser to ${{ steps.bump.outputs.latest }} (v${{ steps.bump.outputs.newver }})"
